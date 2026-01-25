@@ -47,18 +47,18 @@ def main():
     # print(f"\nScientific Reasoning:\n{result['scientific_reasoning']}")
     
     # Example 3: Search wines by compounds
-    print("\n" + "=" * 70)
-    print("EXAMPLE 3: Search wines by specific compounds")
-    print("=" * 70)
+    # print("\n" + "=" * 70)
+    # print("EXAMPLE 3: Search wines by specific compounds")
+    # print("=" * 70)
     
-    matches = sommelier.search_wines_by_compounds(["Citral", "Geraniol", "Linalool"])
-    print(f"\nFound {len(matches)} wines with matching compounds")
-    print("\nTop 5 matches:")
-    for i, match in enumerate(matches[:5], 1):
-        wine = match['wine']
-        print(f"\n{i}. {wine['wine_name']} (ID: {wine['wine_id']})")
-        print(f"   Shared compounds: {', '.join(match['shared_compounds'][:5])}")
-        print(f"   Total matches: {match['match_count']}")
+    # matches = sommelier.search_wines_by_compounds(["Citral", "Geraniol", "Linalool"])
+    # print(f"\nFound {len(matches)} wines with matching compounds")
+    # print("\nTop 5 matches:")
+    # for i, match in enumerate(matches[:5], 1):
+    #     wine = match['wine']
+    #     print(f"\n{i}. {wine['wine_name']} (ID: {wine['wine_id']})")
+    #     print(f"   Shared compounds: {', '.join(match['shared_compounds'][:5])}")
+    #     print(f"   Total matches: {match['match_count']}")
 
 
 if __name__ == "__main__":
