@@ -222,15 +222,6 @@ Document: """
             else:
                 response_text = str(response).strip()
             
-            # #region agent log
-            import json as json_module
-            log_path = Path(".cursor/debug.log")
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"menu_extractor.py:217","message":"Raw response captured","data":{"response_length":len(response_text),"first_500":response_text[:500],"last_500":response_text[-500:] if len(response_text) > 500 else response_text},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
-            
             # Clean and parse JSON
             response_text_cleaned = response_text.strip()
             if response_text_cleaned.startswith("```json"):
@@ -241,13 +232,6 @@ Document: """
                 response_text_cleaned = response_text_cleaned[:-3]
             response_text_cleaned = response_text_cleaned.strip()
             
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"menu_extractor.py:233","message":"Cleaned response before parsing","data":{"cleaned_length":len(response_text_cleaned),"first_500":response_text_cleaned[:500],"last_500":response_text_cleaned[-500:] if len(response_text_cleaned) > 500 else response_text_cleaned},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
-            
             # Check for truncation indicators
             is_truncated = (
                 response_text_cleaned.rstrip().endswith('"') and not response_text_cleaned.rstrip().endswith('"}') and not response_text_cleaned.rstrip().endswith('"]') or
@@ -257,26 +241,12 @@ Document: """
                 (response_text_cleaned.count('[') > response_text_cleaned.count(']'))
             )
             
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"post-fix","hypothesisId":"B","location":"menu_extractor.py:240","message":"Truncation check","data":{"is_truncated":is_truncated,"response_length":len(response_text_cleaned)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
-            
             # Try to parse JSON, with fallback for truncated responses
             try:
                 result = json.loads(response_text_cleaned)
             except json.JSONDecodeError as parse_error:
                 # If truncated, try to extract partial data
                 if is_truncated or "Unterminated string" in str(parse_error):
-                    # #region agent log
-                    try:
-                        with open(log_path, 'a', encoding='utf-8') as f:
-                            f.write(json_module.dumps({"sessionId":"debug-session","runId":"post-fix","hypothesisId":"B","location":"menu_extractor.py:268","message":"Attempting partial JSON recovery","data":{"error":str(parse_error)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                    except: pass
-                    # #endregion
-                    
                     # Try to extract valid partial JSON
                     result = self._recover_partial_json(response_text_cleaned)
                 else:
@@ -297,14 +267,6 @@ Document: """
             return result
             
         except json.JSONDecodeError as e:
-            # #region agent log
-            try:
-                error_pos = getattr(e, 'pos', None)
-                error_msg = str(e)
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"menu_extractor.py:299","message":"JSON parse error details (outer catch)","data":{"error":error_msg,"error_pos":error_pos},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
             print(f"  Warning: Failed to parse JSON response: {e}")
             return {"dishes": [], "wines": []}
         except Exception as e:
@@ -350,14 +312,6 @@ Document: """
                     continue
                     
         except Exception as e:
-            # #region agent log
-            log_path = Path(".cursor/debug.log")
-            try:
-                import json as json_module
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"post-fix","hypothesisId":"B","location":"menu_extractor.py:_recover_partial_json","message":"Partial recovery error","data":{"error":str(e)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
             pass
         
         return result

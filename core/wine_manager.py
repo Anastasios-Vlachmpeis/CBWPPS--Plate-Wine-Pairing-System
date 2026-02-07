@@ -404,41 +404,14 @@ Document: """
                 response_text = response_text[:-3]
             response_text = response_text.strip()
             
-            # #region agent log
-            log_path = Path(".cursor/debug.log")
-            try:
-                import json as json_module
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"wine_manager.py:315","message":"Raw Gemini response","data":{"response_length":len(response_text),"first_500":response_text[:500],"last_500":response_text[-500:] if len(response_text) > 500 else response_text},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
-            
             # Try to parse JSON with error recovery
             try:
                 result = json.loads(response_text)
                 wines = result.get("wines", [])
-                # #region agent log
-                try:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"wine_manager.py:323","message":"Successfully parsed JSON","data":{"wine_count":len(wines)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                except: pass
-                # #endregion
                 return wines
             except json.JSONDecodeError as parse_error:
-                # #region agent log
-                try:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"wine_manager.py:330","message":"JSON parse error, attempting recovery","data":{"error":str(parse_error),"error_pos":getattr(parse_error, 'pos', None)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                except: pass
-                # #endregion
                 # Try to recover partial JSON
                 wines = self._recover_partial_json(response_text)
-                # #region agent log
-                try:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"wine_manager.py:335","message":"Recovery result","data":{"wine_count":len(wines)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                except: pass
-                # #endregion
                 if wines:
                     return wines
                 raise ValueError(f"Failed to parse Gemini JSON response: {parse_error}")
@@ -462,15 +435,6 @@ Document: """
         wines = []
         import re
         
-        # #region agent log
-        log_path = Path(".cursor/debug.log")
-        try:
-            import json as json_module
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"wine_manager.py:_recover_partial_json","message":"Starting recovery","data":{"json_length":len(json_text),"first_500":json_text[:500],"last_500":json_text[-500:] if len(json_text) > 500 else json_text},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-        except: pass
-        # #endregion
-        
         try:
             # Strategy: Extract wine_name and type_name directly using regex groups
             # This is more robust than trying to parse incomplete JSON objects
@@ -478,22 +442,10 @@ Document: """
             wines_array_match = re.search(r'"wines"\s*:\s*\[(.*)', json_text, re.DOTALL)
             if wines_array_match:
                 wines_content = wines_array_match.group(1)
-                # #region agent log
-                try:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"wine_manager.py:_recover_partial_json","message":"Found wines array","data":{"content_length":len(wines_content)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                except: pass
-                # #endregion
                 # Use non-greedy match to avoid matching across multiple wine objects
                 # Also handle cases where wine object might be incomplete (no closing brace)
                 wine_pattern = r'\{\s*"wine_name"\s*:\s*"([^"]+)"[^}]*?"type_name"\s*:\s*"([^"]+)"'
                 matches = list(re.finditer(wine_pattern, wines_content, re.DOTALL))
-                # #region agent log
-                try:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"wine_manager.py:_recover_partial_json","message":"Found wine matches","data":{"match_count":len(matches)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                except: pass
-                # #endregion
             else:
                 # Fallback: Find individual wine objects anywhere
                 wine_pattern = r'\{\s*"wine_name"\s*:\s*"([^"]+)"[^}]*?"type_name"\s*:\s*"([^"]+)"'
@@ -529,27 +481,8 @@ Document: """
                     
                     wines.append(wine)
                 except Exception as e:
-                    # #region agent log
-                    try:
-                        with open(log_path, 'a', encoding='utf-8') as f:
-                            f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"wine_manager.py:_recover_partial_json","message":"Failed to extract wine","data":{"error":str(e)[:50]},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                    except: pass
-                    # #endregion
                     continue
         except Exception as e:
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"wine_manager.py:_recover_partial_json","message":"Recovery exception","data":{"error":str(e)[:100]},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
             pass
-        
-        # #region agent log
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"wine_manager.py:_recover_partial_json","message":"Recovery complete","data":{"wine_count":len(wines)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-        except: pass
-        # #endregion
         
         return wines

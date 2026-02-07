@@ -37,6 +37,11 @@ env/
 *.swp
 *.swo
 *~
+.cursor/
+
+# Generated files
+report.txt
+*.log
 
 # OS
 .DS_Store

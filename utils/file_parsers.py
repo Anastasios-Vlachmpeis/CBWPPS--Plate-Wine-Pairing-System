@@ -234,15 +234,6 @@ def parse_pdf_wine_list(file_path: str) -> List[Dict[str, Any]]:
     
     wines = []
     
-    # #region agent log
-    import json as json_module
-    log_path = Path(".cursor/debug.log")
-    try:
-        with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"file_parsers.py:235","message":"Starting PDF wine parsing","data":{"file_path":file_path},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-    except: pass
-    # #endregion
-    
     try:
         with pdfplumber.open(path) as pdf:
             all_tables = []
@@ -252,13 +243,6 @@ def parse_pdf_wine_list(file_path: str) -> List[Dict[str, Any]]:
                 tables = page.extract_tables()
                 if tables:
                     all_tables.extend(tables)
-            
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"file_parsers.py:245","message":"Tables extracted from PDF","data":{"table_count":len(all_tables),"table_sizes":[len(t) for t in all_tables]},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
             
             if all_tables:
                 # Find the largest table (likely the wine list)
@@ -288,28 +272,9 @@ def parse_pdf_wine_list(file_path: str) -> List[Dict[str, Any]]:
                     if wine:  # Only add non-empty wines
                         wines.append(wine)
             
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"file_parsers.py:273","message":"Wines from table extraction","data":{"wine_count":len(wines)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-            except: pass
-            # #endregion
-            
             else:
                 # No tables found, try text extraction
-                # #region agent log
-                try:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"file_parsers.py:277","message":"No tables found, trying text extraction","data":{},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                except: pass
-                # #endregion
                 wines = _parse_pdf_text(pdf)
-                # #region agent log
-                try:
-                    with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json_module.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"file_parsers.py:280","message":"Wines from text extraction","data":{"wine_count":len(wines)},"timestamp":int(__import__('time').time()*1000)}) + "\n")
-                except: pass
-                # #endregion
     
     except ImportError as e:
         raise ImportError(
