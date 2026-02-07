@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Past Reports - AI Culinary Expert</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <h1 class="app-title">AI Culinary Expert</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="window.location.href='home.html'">Back to Home</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Breadcrumb -->
+            <div class="breadcrumb" id="breadcrumb">
+                <a href="home.html" class="breadcrumb-item">Home</a>
+                <span class="breadcrumb-separator"> > </span>
+                <span class="breadcrumb-item active">Past Reports</span>
+            </div>
+
+            <h2 style="margin-bottom: 30px;">Past Reports</h2>
+
+            <!-- Search and Filter -->
+            <div class="card" style="margin-bottom: 30px;">
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <input type="text" id="search-input" placeholder="Search by report name..." style="padding: 10px; border: 2px solid var(--gray); border-radius: 6px;" oninput="filterReports()">
+                        <select id="sort-select" style="padding: 10px; border: 2px solid var(--gray); border-radius: 6px;" onchange="sortReports()">
+                            <option value="date-desc">Date (Newest)</option>
+                            <option value="date-asc">Date (Oldest)</option>
+                            <option value="name-asc">Name (A-Z)</option>
+                            <option value="name-desc">Name (Z-A)</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="clearOldReports()">Clear Old Reports</button>
+                    </div>
+                    <div style="font-size: 14px; color: #666;">
+                        Storage Usage: <span id="storage-usage">-</span>
+                        <span style="margin-left: 10px; color: #999;">(Max: 5MB)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports List -->
+            <div id="reports-list">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+    </main>
+
+    <script src="js/utils.js"></script>
+    <script>
+        let allReports = [];
+        let filteredReports = [];
+
+        // Load reports on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadReports();
+            updateStorageUsage();
+        });
+
+        function loadReports() {
+            allReports = getSavedReports();
+            filteredReports = [...allReports];
+            displayReports();
+        }
+
+        function displayReports() {
+            const container = document.getElementById('reports-list');
+            if (!container) return;
+
+            if (filteredReports.length === 0) {
+                container.innerHTML = createEmptyState(
+                    '📋',
+                    'No Saved Reports',
+                    'You haven\'t saved any reports yet. Create a new report to get started.',
+                    'Create New Report',
+                    () => { window.location.href = 'create-report.html'; }
+                ).outerHTML;
+                return;
+            }
+
+            container.innerHTML = filteredReports.map(report => {
+                const reportData = report.report || {};
+                const dishCount = Object.keys(reportData.dish_pairings || {}).length;
+                const wineCount = (reportData.wine_rankings || []).length;
+
+                return `
+                    <div class="card" style="margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0 0 10px 0; display: inline-block;" id="name-${report.id}">${report.name || 'Untitled Report'}</h3>
+                                <input type="text" id="name-input-${report.id}" style="display: none; font-size: 18px; font-weight: 600; border: 2px solid var(--primary-green); padding: 5px; border-radius: 4px; width: 300px;" onblur="saveReportName('${report.id}')" onkeypress="if(event.key==='Enter') saveReportName('${report.id}')">
+                                <span class="tooltip" onclick="editReportName('${report.id}')" style="margin-left: 10px; cursor: pointer;">
+                                    <span class="tooltip-icon">✏️</span>
+                                    <span class="tooltip-text">Click to edit</span>
+                                </span>
+                                <div style="color: #666; font-size: 14px; margin-top: 5px;">
+                                    ${report.savedAtFormatted || formatDate(report.savedAt)}
+                                </div>
+                                <div style="margin-top: 10px; display: flex; gap: 20px; font-size: 14px; color: #666;">
+                                    <span>${dishCount} dishes</span>
+                                    <span>${wineCount} wines</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-primary" onclick="viewReport('${report.id}')">View</button>
+                                <button class="btn btn-danger" onclick="deleteReportConfirm('${report.id}')">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function editReportName(id) {
+            const nameElement = document.getElementById(`name-${id}`);
+            const inputElement = document.getElementById(`name-input-${id}`);
+            
+            if (nameElement && inputElement) {
+                inputElement.value = nameElement.textContent;
+                nameElement.style.display = 'none';
+                inputElement.style.display = 'inline-block';
+                inputElement.focus();
+            }
+        }
+
+        function saveReportName(id) {
+            const nameElement = document.getElementById(`name-${id}`);
+            const inputElement = document.getElementById(`name-input-${id}`);
+            
+            if (nameElement && inputElement) {
+                const newName = inputElement.value || 'Untitled Report';
+                updateReport(id, { name: newName });
+                nameElement.textContent = newName;
+                inputElement.style.display = 'none';
+                nameElement.style.display = 'inline-block';
+                
+                // Update in local arrays
+                const report = allReports.find(r => r.id === id);
+                if (report) {
+                    report.name = newName;
+                }
+            }
+        }
+
+        function viewReport(id) {
+            window.location.href = `report-view.html?id=${id}`;
+        }
+
+        function deleteReportConfirm(id) {
+            const report = allReports.find(r => r.id === id);
+            const reportName = report ? report.name : 'this report';
+            
+            showConfirmation(
+                `Delete "${reportName}"? This action cannot be undone.`,
+                () => {
+                    if (deleteReport(id)) {
+                        showToast('Report deleted', 'success');
+                        loadReports();
+                        updateStorageUsage();
+                    } else {
+                        showToast('Failed to delete report', 'error');
+                    }
+                }
+            );
+        }
+
+        function filterReports() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            if (!searchTerm) {
+                filteredReports = [...allReports];
+            } else {
+                filteredReports = allReports.filter(report => {
+                    const name = (report.name || '').toLowerCase();
+                    return name.includes(searchTerm);
+                });
+            }
+            
+            sortReports();
+        }
+
+        function sortReports() {
+            const sortValue = document.getElementById('sort-select').value;
+            
+            filteredReports.sort((a, b) => {
+                switch (sortValue) {
+                    case 'date-desc':
+                        return new Date(b.savedAt) - new Date(a.savedAt);
+                    case 'date-asc':
+                        return new Date(a.savedAt) - new Date(b.savedAt);
+                    case 'name-asc':
+                        return (a.name || '').localeCompare(b.name || '');
+                    case 'name-desc':
+                        return (b.name || '').localeCompare(a.name || '');
+                    default:
+                        return 0;
+                }
+            });
+            
+            displayReports();
+        }
+
+        function clearOldReports() {
+            showConfirmation(
+                'Clear all reports except the 10 most recent? This cannot be undone.',
+                () => {
+                    const deleted = clearOldReports(10);
+                    if (deleted > 0) {
+                        showToast(`Deleted ${deleted} old reports`, 'success');
+                        loadReports();
+                        updateStorageUsage();
+                    } else {
+                        showToast('No old reports to delete', 'warning');
+                    }
+                }
+            );
+        }
+
+        function updateStorageUsage() {
+            const usage = getStorageUsage();
+            const usageElement = document.getElementById('storage-usage');
+            if (usageElement) {
+                const usedMB = (usage.used / 1024 / 1024).toFixed(2);
+                const totalMB = (MAX_STORAGE_SIZE / 1024 / 1024).toFixed(2);
+                usageElement.textContent = `${usedMB} MB / ${totalMB} MB (${usage.percentage.toFixed(1)}%)`;
+                
+                if (usage.percentage > 80) {
+                    usageElement.style.color = 'var(--error-red)';
+                } else if (usage.percentage > 60) {
+                    usageElement.style.color = 'var(--warning-yellow)';
+                }
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const existingToasts = document.querySelectorAll('.toast');
+            existingToasts.forEach(toast => toast.remove());
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

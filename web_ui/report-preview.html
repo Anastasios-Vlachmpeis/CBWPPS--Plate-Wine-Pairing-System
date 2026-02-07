@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Preview - AI Culinary Expert</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <h1 class="app-title">AI Culinary Expert</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="window.location.href='home.html'">Back to Home</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Breadcrumb -->
+            <div class="breadcrumb" id="breadcrumb">
+                <a href="home.html" class="breadcrumb-item">Home</a>
+                <span class="breadcrumb-separator"> > </span>
+                <a href="create-report.html" class="breadcrumb-item">Create Report</a>
+                <span class="breadcrumb-separator"> > </span>
+                <span class="breadcrumb-item active">Preview</span>
+            </div>
+
+            <h2 style="margin-bottom: 30px;">Report Preview</h2>
+
+            <!-- Quick Stats -->
+            <div class="card" style="margin-bottom: 30px;">
+                <div class="card-header">
+                    <h3 class="card-title">Quick Summary</h3>
+                </div>
+                <div class="card-body">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 32px; font-weight: bold; color: var(--primary-green);" id="stat-dishes">-</div>
+                            <div style="color: #666;">Dishes Processed</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 32px; font-weight: bold; color: var(--primary-green);" id="stat-wines">-</div>
+                            <div style="color: #666;">Wines Analyzed</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 32px; font-weight: bold; color: var(--primary-green);" id="stat-pairings">-</div>
+                            <div style="color: #666;">Pairings Made</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 32px; font-weight: bold; color: var(--primary-green);" id="stat-similar">-</div>
+                            <div style="color: #666;">Similar Wines</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Sections -->
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="collapsible-header" onclick="toggleCollapsible('preview-rankings')">
+                    <h3>Top Wine Rankings (Preview)</h3>
+                    <span class="collapsible-toggle" id="toggle-rankings">+</span>
+                </div>
+                <div class="collapsible-content" id="preview-rankings">
+                    <div id="rankings-preview-content"></div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="collapsible-header" onclick="toggleCollapsible('preview-pairings')">
+                    <h3>Sample Dish Pairings (Preview)</h3>
+                    <span class="collapsible-toggle" id="toggle-pairings">+</span>
+                </div>
+                <div class="collapsible-content" id="preview-pairings">
+                    <div id="pairings-preview-content"></div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div style="text-align: center; margin-top: 40px;">
+                <button class="btn btn-secondary" onclick="goBack()" style="margin-right: 15px;">Go Back</button>
+                <button class="btn btn-primary" onclick="viewFullReport()" style="margin-right: 15px;">View Full Report</button>
+                <button class="btn btn-primary" onclick="saveAndContinue()">Save & Continue</button>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/utils.js"></script>
+    <script>
+        let reportData = null;
+
+        // Load report from sessionStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            const reportJson = sessionStorage.getItem('current_report');
+            if (!reportJson) {
+                window.location.href = 'home.html';
+                return;
+            }
+
+            reportData = JSON.parse(reportJson);
+            displayPreview(reportData);
+        });
+
+        function displayPreview(data) {
+            const report = data.report || {};
+
+            // Update stats
+            const dishCount = Object.keys(report.dish_pairings || {}).length;
+            const wineCount = (report.wine_rankings || []).length;
+            const pairingCount = Object.values(report.dish_pairings || {}).filter(p => p.best_wine).length;
+            const similarCount = (report.wines_to_remove || []).length;
+
+            document.getElementById('stat-dishes').textContent = dishCount;
+            document.getElementById('stat-wines').textContent = wineCount;
+            document.getElementById('stat-pairings').textContent = pairingCount;
+            document.getElementById('stat-similar').textContent = similarCount;
+
+            // Preview rankings (top 5)
+            const rankingsContent = document.getElementById('rankings-preview-content');
+            if (rankingsContent && report.wine_rankings) {
+                const top5 = report.wine_rankings.slice(0, 5);
+                if (top5.length > 0) {
+                    rankingsContent.innerHTML = `
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Wine Name</th>
+                                    <th>Type</th>
+                                    <th>Matches</th>
+                                    <th>Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${top5.map(r => `
+                                    <tr>
+                                        <td>${r.rank}</td>
+                                        <td>${r.wine_name}</td>
+                                        <td>${r.type_name}</td>
+                                        <td>${r.dishes_matched}</td>
+                                        <td>${r.score.toFixed(3)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    rankingsContent.innerHTML = '<p>No rankings available</p>';
+                }
+            }
+
+            // Preview pairings (first 3 dishes)
+            const pairingsContent = document.getElementById('pairings-preview-content');
+            if (pairingsContent && report.dish_pairings) {
+                const dishes = Object.values(report.dish_pairings).slice(0, 3);
+                if (dishes.length > 0) {
+                    pairingsContent.innerHTML = dishes.map(pairing => `
+                        <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
+                            <h4>${pairing.dish_name}</h4>
+                            ${pairing.best_wine ? `
+                                <p><strong>Best Wine:</strong> ${pairing.best_wine.wine_name} (${pairing.best_wine.type_name})</p>
+                                <p>${pairing.sommelier_explanation || 'No explanation available'}</p>
+                            ` : '<p>No wine pairing found</p>'}
+                        </div>
+                    `).join('');
+                } else {
+                    pairingsContent.innerHTML = '<p>No pairings available</p>';
+                }
+            }
+        }
+
+        function toggleCollapsible(id) {
+            const content = document.getElementById(id);
+            const toggle = document.getElementById('toggle-' + id.split('-')[1]);
+            
+            content.classList.toggle('expanded');
+            toggle.textContent = content.classList.contains('expanded') ? '−' : '+';
+        }
+
+        function goBack() {
+            window.location.href = 'create-report.html';
+        }
+
+        function viewFullReport() {
+            window.location.href = 'report-view.html';
+        }
+
+        function saveAndContinue() {
+            window.location.href = 'report-view.html';
+        }
+    </script>
+</body>
+</html>

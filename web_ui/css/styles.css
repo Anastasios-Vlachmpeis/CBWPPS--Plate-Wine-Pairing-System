@@ -1,0 +1,406 @@
+/* Main Stylesheet for AI Culinary Expert - Modern & Clean Design */
+
+/* Import Modern Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #ffffff;
+    color: #1f2937;
+    line-height: 1.6;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings use Montserrat Alternates */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat Alternates', sans-serif;
+    font-weight: 600;
+    color: #111827;
+}
+
+/* Color Variables */
+:root {
+    --primary-green: #1a5f1a;
+    --dark-green: #2d5016;
+    --light-green: #4a7c3a;
+    --white: #ffffff;
+    --light-gray: #f9fafb;
+    --gray: #e5e7eb;
+    --dark-gray: #374151;
+    --error-red: #ef4444;
+    --success-green: #10b981;
+    --warning-yellow: #f59e0b;
+    --info-blue: #6cbeed;
+}
+
+/* Container */
+.container {
+    max-width: 428px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+.header {
+    background-color: var(--white);
+    border-bottom: 1px solid var(--gray);
+    padding: 16px 0;
+    margin-bottom: 24px;
+}
+
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.app-title {
+    font-family: 'Montserrat Alternates', sans-serif;
+    font-size: 20px;
+    color: var(--primary-green);
+    font-weight: 600;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.username {
+    color: var(--dark-gray);
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Welcome Section */
+.welcome-section {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.welcome-section h2 {
+    font-family: 'Montserrat Alternates', sans-serif;
+    font-size: 28px;
+    color: #111827;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.subtitle {
+    font-size: 16px;
+    color: #6b7280;
+    font-weight: 400;
+}
+
+/* Action Cards */
+.action-cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 32px;
+}
+
+.action-card {
+    background: var(--white);
+    border: 1px solid var(--gray);
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.action-card:hover {
+    border-color: var(--primary-green);
+    box-shadow: 0 4px 12px rgba(26, 95, 26, 0.1);
+    transform: translateY(-2px);
+}
+
+.action-card:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.card-icon {
+    font-size: 40px;
+    margin-bottom: 16px;
+}
+
+.action-card h3 {
+    font-family: 'Montserrat Alternates', sans-serif;
+    font-size: 20px;
+    color: #111827;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.action-card p {
+    color: #6b7280;
+    font-size: 14px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+/* Login Page Specific */
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: linear-gradient(to bottom, #f9fafb, #ffffff);
+    padding: 20px;
+}
+
+.login-page .container {
+    width: 100%;
+    max-width: 400px;
+    padding: 40px 32px;
+    background: var(--white);
+    border-radius: 24px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.logo-container {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.logo {
+    max-width: 120px;
+    height: auto;
+    margin-bottom: 8px;
+}
+
+.welcome-message {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.welcome-message h1 {
+    font-family: 'Montserrat Alternates', sans-serif;
+    font-size: 28px;
+    color: #111827;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.welcome-message p {
+    color: #6b7280;
+    font-size: 15px;
+    font-weight: 400;
+}
+
+/* Auth Tabs */
+.auth-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    background: var(--light-gray);
+    padding: 4px;
+    border-radius: 12px;
+}
+
+.tab-button {
+    flex: 1;
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #6b7280;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Inter', sans-serif;
+}
+
+.tab-button:hover {
+    color: var(--primary-green);
+    background: rgba(26, 95, 26, 0.05);
+}
+
+.tab-button.active {
+    color: var(--primary-green);
+    background: var(--white);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tab-button:active {
+    transform: scale(0.98);
+}
+
+/* Auth Forms */
+.auth-form {
+    background: var(--white);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #374151;
+    font-weight: 500;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1.5px solid var(--gray);
+    border-radius: 12px;
+    font-size: 15px;
+    transition: all 0.2s ease;
+    font-family: 'Inter', sans-serif;
+    background: var(--white);
+    color: #111827;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 3px rgba(26, 95, 26, 0.1);
+}
+
+.form-group input::placeholder {
+    color: #9ca3af;
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+    font-family: 'Inter', sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.btn-primary {
+    background-color: var(--primary-green);
+    color: var(--white);
+    width: 100%;
+    box-shadow: 0 2px 8px rgba(26, 95, 26, 0.2);
+}
+
+.btn-primary:hover {
+    background-color: var(--dark-green);
+    box-shadow: 0 4px 12px rgba(26, 95, 26, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active {
+    transform: scale(0.97);
+    box-shadow: 0 1px 3px rgba(26, 95, 26, 0.2);
+}
+
+.btn-primary:disabled {
+    background-color: var(--gray);
+    color: #9ca3af;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+.btn-secondary {
+    background-color: var(--white);
+    color: var(--primary-green);
+    border: 1.5px solid var(--primary-green);
+}
+
+.btn-secondary:hover {
+    background-color: rgba(26, 95, 26, 0.05);
+    transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+    transform: scale(0.97);
+}
+
+.btn-danger {
+    background-color: var(--error-red);
+    color: var(--white);
+}
+
+.btn-danger:hover {
+    background-color: #dc2626;
+    transform: translateY(-1px);
+}
+
+.btn-danger:active {
+    transform: scale(0.97);
+}
+
+/* Focus States for Accessibility */
+button:focus-visible,
+input:focus-visible {
+    outline: 2px solid var(--info-blue);
+    outline-offset: 2px;
+}
+
+/* Main Content */
+.main-content {
+    padding: 20px 0;
+    min-height: calc(100vh - 100px);
+}
+
+/* Responsive */
+@media (min-width: 768px) {
+    .container {
+        max-width: 600px;
+    }
+    
+    .action-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .header-content {
+        flex-direction: row;
+    }
+    
+    .welcome-section h2 {
+        font-size: 32px;
+    }
+    
+    .login-page .container {
+        max-width: 440px;
+        padding: 48px 40px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .container {
+        max-width: 1200px;
+    }
+}

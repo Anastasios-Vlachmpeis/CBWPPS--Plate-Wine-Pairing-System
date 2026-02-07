@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report View - AI Culinary Expert</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <h1 class="app-title">AI Culinary Expert</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="window.location.href='home.html'">Back to Home</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Breadcrumb -->
+            <div class="breadcrumb" id="breadcrumb">
+                <a href="home.html" class="breadcrumb-item">Home</a>
+                <span class="breadcrumb-separator"> > </span>
+                <span class="breadcrumb-item active">Report</span>
+            </div>
+
+            <!-- Report Header -->
+            <div class="card" style="margin-bottom: 30px;">
+                <div class="card-header">
+                    <div>
+                        <h2 style="margin: 0; display: inline-block;" id="report-title">Wine Pairing Report</h2>
+                        <input type="text" id="report-title-input" style="display: none; font-size: 20px; font-weight: 600; border: 2px solid var(--primary-green); padding: 5px; border-radius: 4px; width: 300px;" onblur="saveReportTitle()" onkeypress="if(event.key==='Enter') saveReportTitle()">
+                        <span class="tooltip" onclick="editReportTitle()" style="margin-left: 10px; cursor: pointer;">
+                            <span class="tooltip-icon">✏️</span>
+                            <span class="tooltip-text">Click to edit report name</span>
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="saveReport()">Save Report</button>
+                        <button class="btn btn-primary" onclick="downloadPDF()">Download PDF</button>
+                        <button class="btn btn-danger" onclick="discardReport()">Discard</button>
+                    </div>
+                </div>
+                <div style="padding: 15px; color: #666;">
+                    <span id="report-date"></span>
+                </div>
+            </div>
+
+            <!-- Wine Rankings Section -->
+            <div class="card" style="margin-bottom: 30px;">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        Wine Rankings
+                        <span class="tooltip">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">Wines are ranked by the number of dishes they match and the quality of those matches. Higher scores indicate better overall pairings.</span>
+                        </span>
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div id="wine-rankings-content">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Similar Wines Section -->
+            <div class="card" style="margin-bottom: 30px;">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        Similar Wines
+                        <span class="tooltip">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">These wines have very similar flavor profiles. Consider removing one from each pair to diversify your wine list.</span>
+                        </span>
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div id="similar-wines-content">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dish-Wine Pairings Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Dish-Wine Pairings</h3>
+                    <button class="btn btn-secondary" onclick="toggleAllPairings()" id="toggle-all-btn">Expand All</button>
+                </div>
+                <div class="card-body">
+                    <div id="dish-pairings-content">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/utils.js"></script>
+    <script>
+        let reportData = null;
+        let reportId = null;
+
+        // Load report from sessionStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if coming from preview or past reports
+            const reportJson = sessionStorage.getItem('current_report');
+            const reportIdParam = new URLSearchParams(window.location.search).get('id');
+
+            if (reportIdParam) {
+                // Load from saved reports
+                reportData = getReportById(reportIdParam);
+                if (!reportData) {
+                    window.location.href = 'past-reports.html';
+                    return;
+                }
+                reportId = reportIdParam;
+            } else if (reportJson) {
+                // Load from session (new report)
+                reportData = JSON.parse(reportJson);
+            } else {
+                window.location.href = 'home.html';
+                return;
+            }
+
+            displayReport(reportData);
+        });
+
+        function displayReport(data) {
+            const report = data.report || data;
+            
+            // Set report date
+            const dateElement = document.getElementById('report-date');
+            if (dateElement) {
+                dateElement.textContent = `Generated: ${report.timestamp ? formatDate(report.timestamp) : formatDate(new Date())}`;
+            }
+
+            // Set report title
+            if (reportId && data.name) {
+                document.getElementById('report-title').textContent = data.name;
+            }
+
+            // Display wine rankings
+            displayWineRankings(report.wine_rankings || []);
+
+            // Display similar wines
+            displaySimilarWines(report.wines_to_remove || []);
+
+            // Display dish pairings
+            displayDishPairings(report.dish_pairings || {});
+        }
+
+        function displayWineRankings(rankings) {
+            const content = document.getElementById('wine-rankings-content');
+            if (!content) return;
+
+            if (rankings.length === 0) {
+                content.innerHTML = createEmptyState(
+                    '📊',
+                    'No Wine Rankings',
+                    'No wines were ranked. This may occur if no pairings were made.',
+                    null,
+                    null
+                ).outerHTML;
+                return;
+            }
+
+            content.innerHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Wine Name</th>
+                            <th>Type</th>
+                            <th>Dishes Matched</th>
+                            <th>Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rankings.map(r => `
+                            <tr>
+                                <td>${r.rank}</td>
+                                <td>${r.wine_name}</td>
+                                <td>${r.type_name}</td>
+                                <td>${r.dishes_matched}</td>
+                                <td>${r.score.toFixed(3)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function displaySimilarWines(winesToRemove) {
+            const content = document.getElementById('similar-wines-content');
+            if (!content) return;
+
+            if (winesToRemove.length === 0) {
+                content.innerHTML = createEmptyState(
+                    '✅',
+                    'No Similar Wines Found',
+                    'Great diversity! No wines need to be removed due to similarity.',
+                    null,
+                    null
+                ).outerHTML;
+                return;
+            }
+
+            content.innerHTML = winesToRemove.map(wine => `
+                <div style="padding: 15px; margin-bottom: 15px; background: #fff3cd; border-left: 4px solid var(--warning-yellow); border-radius: 4px;">
+                    <div style="font-weight: 600; margin-bottom: 5px;">${wine.wine_name} (${wine.type_name})</div>
+                    <div style="font-size: 14px; color: #666;">${wine.reason}</div>
+                </div>
+            `).join('');
+        }
+
+        function displayDishPairings(pairings) {
+            const content = document.getElementById('dish-pairings-content');
+            if (!content) return;
+
+            const dishList = Object.values(pairings);
+            if (dishList.length === 0) {
+                content.innerHTML = createEmptyState(
+                    '🍽️',
+                    'No Dish Pairings',
+                    'No wine pairings were found for your dishes. Try adjusting your wine selection.',
+                    null,
+                    null
+                ).outerHTML;
+                return;
+            }
+
+            content.innerHTML = dishList.map((pairing, index) => `
+                <div class="collapsible-header" onclick="togglePairing(${index})" style="margin-bottom: 10px;">
+                    <div>
+                        <strong>${pairing.dish_name}</strong>
+                        ${pairing.best_wine ? `<span style="color: #666; margin-left: 15px;">Best: ${pairing.best_wine.wine_name}</span>` : ''}
+                    </div>
+                    <span class="collapsible-toggle" id="toggle-${index}">+</span>
+                </div>
+                <div class="collapsible-content" id="pairing-${index}">
+                    ${pairing.best_wine ? `
+                        <div style="padding: 15px; background: var(--light-gray); border-radius: 6px; margin-bottom: 15px;">
+                            <h4>${pairing.best_wine.wine_name} (${pairing.best_wine.type_name})</h4>
+                            <p style="margin: 15px 0; line-height: 1.8;">${pairing.sommelier_explanation || 'No explanation available'}</p>
+                            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                                <strong>Scientific Analysis:</strong>
+                                <ul style="margin-top: 10px; padding-left: 20px;">
+                                    <li>Pairing Score: ${pairing.scientific_analysis.pairing_score.toFixed(3)}</li>
+                                    <li>Shared Compounds: ${pairing.scientific_analysis.shared_compounds_count}</li>
+                                    <li>Dish Compounds: ${pairing.scientific_analysis.dish_compounds_count}</li>
+                                    <li>Wine Compounds: ${pairing.scientific_analysis.wine_compounds_count}</li>
+                                </ul>
+                                ${pairing.scientific_analysis.shared_compounds && pairing.scientific_analysis.shared_compounds.length > 0 ? `
+                                    <div style="margin-top: 10px;">
+                                        <strong>Shared Compounds:</strong>
+                                        <div style="margin-top: 5px;">${pairing.scientific_analysis.shared_compounds.slice(0, 10).join(', ')}${pairing.scientific_analysis.shared_compounds.length > 10 ? '...' : ''}</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    ` : '<p>No wine pairing found for this dish.</p>'}
+                    ${pairing.all_matched_wines && pairing.all_matched_wines.length > 1 ? `
+                        <div style="margin-top: 15px;">
+                            <strong>Other Matched Wines:</strong>
+                            <ul style="margin-top: 10px; padding-left: 20px;">
+                                ${pairing.all_matched_wines.slice(1).map(w => `<li>${w.wine_name}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function togglePairing(index) {
+            const content = document.getElementById(`pairing-${index}`);
+            const toggle = document.getElementById(`toggle-${index}`);
+            
+            if (content && toggle) {
+                content.classList.toggle('expanded');
+                toggle.textContent = content.classList.contains('expanded') ? '−' : '+';
+            }
+        }
+
+        function toggleAllPairings() {
+            const allContents = document.querySelectorAll('[id^="pairing-"]');
+            const allToggles = document.querySelectorAll('[id^="toggle-"]');
+            const btn = document.getElementById('toggle-all-btn');
+            
+            const allExpanded = Array.from(allContents).every(c => c.classList.contains('expanded'));
+            
+            allContents.forEach((content, index) => {
+                if (allExpanded) {
+                    content.classList.remove('expanded');
+                } else {
+                    content.classList.add('expanded');
+                }
+            });
+            
+            allToggles.forEach(toggle => {
+                toggle.textContent = allExpanded ? '+' : '−';
+            });
+            
+            if (btn) {
+                btn.textContent = allExpanded ? 'Expand All' : 'Collapse All';
+            }
+        }
+
+        function editReportTitle() {
+            const title = document.getElementById('report-title');
+            const input = document.getElementById('report-title-input');
+            
+            if (title && input) {
+                input.value = title.textContent;
+                title.style.display = 'none';
+                input.style.display = 'inline-block';
+                input.focus();
+            }
+        }
+
+        function saveReportTitle() {
+            const title = document.getElementById('report-title');
+            const input = document.getElementById('report-title-input');
+            
+            if (title && input) {
+                title.textContent = input.value || 'Wine Pairing Report';
+                input.style.display = 'none';
+                title.style.display = 'inline-block';
+            }
+        }
+
+        function saveReport() {
+            if (!reportData) return;
+
+            const reportName = document.getElementById('report-title').textContent;
+            
+            showConfirmation(
+                'Save this report? It will be available in your past reports.',
+                () => {
+                    const saved = saveReport({
+                        id: reportId || generateId(),
+                        name: reportName,
+                        report: reportData.report || reportData,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    if (saved) {
+                        showToast('Report saved successfully!', 'success');
+                        setTimeout(() => {
+                            window.location.href = 'past-reports.html';
+                        }, 1000);
+                    } else {
+                        showToast('Failed to save report', 'error');
+                    }
+                }
+            );
+        }
+
+        function downloadPDF() {
+            if (!reportData) return;
+
+            generatePDF(reportData).catch(error => {
+                showToast('Failed to generate PDF: ' + error.message, 'error');
+            });
+        }
+
+        function discardReport() {
+            showConfirmation(
+                'Are you sure you want to discard this report? This action cannot be undone.',
+                () => {
+                    sessionStorage.removeItem('current_report');
+                    window.location.href = 'home.html';
+                }
+            );
+        }
+
+        function showToast(message, type = 'success') {
+            const existingToasts = document.querySelectorAll('.toast');
+            existingToasts.forEach(toast => toast.remove());
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

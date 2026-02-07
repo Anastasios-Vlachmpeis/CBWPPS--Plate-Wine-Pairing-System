@@ -104,7 +104,7 @@ class CulinaryExpertApp:
     def load_wines(
         self,
         wine_files: Optional[List[str]] = None,
-        extracted_wines: Optional[List[Dict[str, Any]] = None
+        extracted_wines: Optional[List[Dict[str, Any]]] = None
     ) -> List[Dict[str, Any]]:
         """
         Load wines from files or use extracted wines

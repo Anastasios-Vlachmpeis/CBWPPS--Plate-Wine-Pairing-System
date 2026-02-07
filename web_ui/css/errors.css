@@ -1,0 +1,85 @@
+/* Error states and messages */
+
+/* Form Validation States */
+.form-group.error input {
+    border-color: var(--error-red);
+}
+
+.form-group.error label {
+    color: var(--error-red);
+}
+
+.form-group.success input {
+    border-color: var(--success-green);
+}
+
+/* Inline Error Messages */
+.field-error {
+    color: var(--error-red);
+    font-size: 14px;
+    margin-top: 5px;
+    display: block;
+}
+
+/* Error States for Components */
+.error-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--error-red);
+}
+
+.error-state-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+}
+
+.error-state-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.error-state-message {
+    font-size: 16px;
+    margin-bottom: 20px;
+    color: var(--dark-gray);
+}
+
+.error-state-action {
+    margin-top: 20px;
+}
+
+/* File Upload Errors */
+.file-error {
+    background: #fee;
+    border: 1px solid var(--error-red);
+    border-radius: 6px;
+    padding: 10px;
+    margin-top: 10px;
+    color: var(--error-red);
+    font-size: 14px;
+}
+
+/* Network Error */
+.network-error {
+    background: #fff3cd;
+    border: 1px solid var(--warning-yellow);
+    border-radius: 6px;
+    padding: 15px;
+    margin: 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.network-error-icon {
+    font-size: 24px;
+}
+
+.network-error-message {
+    flex: 1;
+}
+
+.network-error-retry {
+    margin-left: auto;
+}

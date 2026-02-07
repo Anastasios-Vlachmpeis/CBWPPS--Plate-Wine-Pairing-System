@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Culinary Expert - Login</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body class="login-page">
+    <div class="container">
+        <!-- Logo Section -->
+        <div class="logo-container">
+            <img src="assets/logo.png" alt="AI Culinary Expert Logo" class="logo" id="app-logo" onerror="this.style.display='none'">
+        </div>
+
+        <!-- Welcome Message -->
+        <div class="welcome-message">
+            <h1>Welcome to AI Culinary Expert</h1>
+            <p>Your intelligent wine pairing assistant</p>
+        </div>
+
+        <!-- Login/Register Tabs -->
+        <div class="auth-tabs">
+            <button class="tab-button active" id="login-tab" onclick="switchTab('login')">Login</button>
+            <button class="tab-button" id="register-tab" onclick="switchTab('register')">Create Account</button>
+        </div>
+
+        <!-- Login Form -->
+        <div class="auth-form" id="login-form">
+            <form id="login-form-element" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+            <div id="login-error" class="error-message" style="display: none;"></div>
+        </div>
+
+        <!-- Register Form -->
+        <div class="auth-form" id="register-form" style="display: none;">
+            <form id="register-form-element" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="register-username">Username</label>
+                    <input type="text" id="register-username" name="username" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Password</label>
+                    <input type="password" id="register-password" name="password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="register-confirm">Confirm Password</label>
+                    <input type="password" id="register-confirm" name="confirm_password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Account</button>
+            </form>
+            <div id="register-error" class="error-message" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+</body>
+</html>

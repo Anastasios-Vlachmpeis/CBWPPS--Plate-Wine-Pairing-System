@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Culinary Expert - Home</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <h1 class="app-title">AI Culinary Expert</h1>
+            <div class="header-actions">
+                <span class="username" id="username-display"></span>
+                <button class="btn btn-secondary" onclick="handleLogout()">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <div class="welcome-section">
+                <h2>Welcome back, <span id="welcome-username"></span>!</h2>
+                <p class="subtitle">Create wine pairing reports or view your past analyses</p>
+            </div>
+
+            <div class="action-cards">
+                <div class="action-card">
+                    <div class="card-icon">📊</div>
+                    <h3>View Past Reports</h3>
+                    <p>Browse and manage your saved wine pairing reports</p>
+                    <button class="btn btn-primary" onclick="window.location.href='past-reports.html'">
+                        View Reports
+                    </button>
+                </div>
+
+                <div class="action-card">
+                    <div class="card-icon">✨</div>
+                    <h3>Create New Report</h3>
+                    <p>Upload your menu and wine lists to generate a comprehensive pairing analysis</p>
+                    <button class="btn btn-primary" onclick="window.location.href='create-report.html'">
+                        Create Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/auth.js"></script>
+    <script>
+        // Check authentication
+        document.addEventListener('DOMContentLoaded', function() {
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            document.getElementById('username-display').textContent = user.username;
+            document.getElementById('welcome-username').textContent = user.username;
+        });
+
+        function handleLogout() {
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>
