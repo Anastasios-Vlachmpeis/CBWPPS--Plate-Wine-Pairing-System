@@ -320,54 +320,72 @@ Explanation:"""
             from .pairing_engine import PairingEngine
             pairing_engine = PairingEngine()
         
-        for dish_id, wine_ids in pairings.items():
-            dish = menu_profile.get(dish_id)
-            if not dish or not wine_ids:
+        # Process all dishes in menu_profile, including those with no pairings
+        for dish_id, dish in menu_profile.items():
+            wine_ids = pairings.get(dish_id, [])
+            
+            # Check if dish has no flavor profile
+            flavor_profile_note = dish.get("flavor_profile_note")
+            if flavor_profile_note:
+                dish_pairings[dish_id] = {
+                    "dish_name": dish.get("dish_name", "Unknown"),
+                    "flavor_profile_note": flavor_profile_note,
+                    "wines": [],
+                    "message": "No good wine pairings can be made with this plate, based on your current winelist"
+                }
                 continue
             
-            # Get best wine (first in list, or highest scoring)
-            best_wine_id = wine_ids[0]
-            best_wine = wine_dict.get(best_wine_id)
-            if not best_wine:
+            # Check if no pairings found
+            if not wine_ids:
+                dish_pairings[dish_id] = {
+                    "dish_name": dish.get("dish_name", "Unknown"),
+                    "wines": [],
+                    "message": "No good wine pairings can be made with this plate, based on your current winelist"
+                }
                 continue
             
-            # Calculate pairing score
-            pairing_score = pairing_engine.calculate_pairing_score(
-                dish_id=dish_id,
-                wine=best_wine,
-                menu_profile=menu_profile
-            )
+            # Limit to up to 3 wines per dish
+            wine_ids = wine_ids[:3]
             
-            # Generate scientific analysis
-            scientific_analysis = self._generate_scientific_analysis(
-                dish=dish,
-                wine=best_wine,
-                pairing_score=pairing_score
-            )
-            
-            # Generate sommelier explanation
-            sommelier_explanation = self._generate_sommelier_explanation(
-                dish=dish,
-                wine=best_wine,
-                scientific_analysis=scientific_analysis
-            )
+            # Generate pairings for each wine (up to 3)
+            wine_pairings = []
+            for wine_id in wine_ids:
+                wine = wine_dict.get(wine_id)
+                if not wine:
+                    continue
+                
+                # Calculate pairing score
+                pairing_score = pairing_engine.calculate_pairing_score(
+                    dish_id=dish_id,
+                    wine=wine,
+                    menu_profile=menu_profile
+                )
+                
+                # Generate scientific analysis
+                scientific_analysis = self._generate_scientific_analysis(
+                    dish=dish,
+                    wine=wine,
+                    pairing_score=pairing_score
+                )
+                
+                # Generate sommelier explanation (max 2 sentences)
+                sommelier_explanation = self._generate_sommelier_explanation(
+                    dish=dish,
+                    wine=wine,
+                    scientific_analysis=scientific_analysis
+                )
+                
+                wine_pairings.append({
+                    "wine_id": wine_id,
+                    "wine_name": wine.get("wine_name", "Unknown"),
+                    "type_name": wine.get("type_name", "Unknown"),
+                    "scientific_analysis": scientific_analysis,
+                    "sommelier_explanation": sommelier_explanation
+                })
             
             dish_pairings[dish_id] = {
                 "dish_name": dish.get("dish_name", "Unknown"),
-                "best_wine": {
-                    "wine_id": best_wine_id,
-                    "wine_name": best_wine.get("wine_name", "Unknown"),
-                    "type_name": best_wine.get("type_name", "Unknown")
-                },
-                "scientific_analysis": scientific_analysis,
-                "sommelier_explanation": sommelier_explanation,
-                "all_matched_wines": [
-                    {
-                        "wine_id": wid,
-                        "wine_name": wine_dict.get(wid, {}).get("wine_name", "Unknown")
-                    }
-                    for wid in wine_ids
-                ]
+                "wines": wine_pairings
             }
         
         # Build comprehensive report
@@ -439,22 +457,47 @@ Explanation:"""
         # Dish Pairings
         lines.append("DISH-WINE PAIRINGS")
         lines.append("-" * 70)
-        lines.append("Best wine match for each dish with scientific analysis")
+        lines.append("Up to 3 best wine matches for each dish with scientific analysis")
         lines.append("")
         
         for dish_id, pairing_info in report["dish_pairings"].items():
             dish_name = pairing_info["dish_name"]
-            wine = pairing_info["best_wine"]
-            scientific = pairing_info["scientific_analysis"]
-            explanation = pairing_info["sommelier_explanation"]
             
+            # Check for flavor profile note
+            if "flavor_profile_note" in pairing_info:
+                lines.append(f"Dish: {dish_name}")
+                lines.append(f"  {pairing_info['flavor_profile_note']}")
+                lines.append(f"  {pairing_info.get('message', 'No pairings available')}")
+                lines.append("")
+                continue
+            
+            # Check for no pairings message
+            if "message" in pairing_info:
+                lines.append(f"Dish: {dish_name}")
+                lines.append(f"  {pairing_info['message']}")
+                lines.append("")
+                continue
+            
+            # Show up to 3 wine pairings
+            wines = pairing_info.get("wines", [])
             lines.append(f"Dish: {dish_name}")
-            lines.append(f"  Best Wine: {wine['wine_name']} ({wine['type_name']})")
-            lines.append(f"  Pairing Score: {scientific['pairing_score']:.3f}")
-            lines.append(f"  Shared Compounds: {scientific['shared_compounds_count']} "
-                        f"({', '.join(scientific['shared_compounds'][:5])})")
-            lines.append(f"  Scientific Analysis: {scientific['matching_method']}")
-            lines.append(f"  Sommelier Explanation: {explanation}")
+            
+            if not wines:
+                lines.append("  No good wine pairings found")
+            else:
+                for i, wine_pairing in enumerate(wines, 1):
+                    wine_name = wine_pairing["wine_name"]
+                    wine_type = wine_pairing["type_name"]
+                    scientific = wine_pairing["scientific_analysis"]
+                    explanation = wine_pairing["sommelier_explanation"]
+                    
+                    lines.append(f"  Wine {i}: {wine_name} ({wine_type})")
+                    lines.append(f"    Pairing Score: {scientific['pairing_score']:.3f}")
+                    lines.append(f"    Shared Compounds: {scientific['shared_compounds_count']} "
+                                f"({', '.join(scientific['shared_compounds'][:5]) if scientific['shared_compounds'] else 'None'})")
+                    lines.append(f"    Explanation: {explanation}")
+                    lines.append("")
+            
             lines.append("")
         
         lines.append("=" * 70)

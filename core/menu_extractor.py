@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 import google.genai as genai
 from utils.file_parsers import (
-    extract_text_from_pdf,
     read_excel_content,
     read_csv_content,
     detect_file_type
@@ -96,11 +95,95 @@ class MenuExtractor:
         
         return []
     
+    def _enrich_ingredient_with_compounds(self, ingredient: str) -> List[str]:
+        """
+        Query Gemini to get flavor compounds for an ingredient not in the map
+        Saves the new ingredient to ingredient_flavor_map.json
+        
+        Args:
+            ingredient: Name of the ingredient
+            
+        Returns:
+            List of flavor compound names (up to 70)
+        """
+        prompt = f"""You are a flavor chemistry expert. Based on online information and scientific knowledge, assign up to 70 flavor compounds to the ingredient: {ingredient}
+
+Return ONLY a JSON array of compound names (no markdown, no code blocks):
+["compound1", "compound2", "compound3", ...]
+
+Focus on the most important and characteristic flavor compounds for this ingredient. Use standard chemical compound names."""
+        
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config={
+                    "temperature": 0.3,
+                    "max_output_tokens": 2000,
+                    "response_mime_type": "application/json"
+                }
+            )
+            
+            # Extract text from response
+            if hasattr(response, 'text'):
+                response_text = response.text.strip()
+            elif hasattr(response, 'candidates') and response.candidates:
+                response_text = response.candidates[0].content.parts[0].text.strip()
+            else:
+                response_text = str(response).strip()
+            
+            # Clean JSON
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            response_text = response_text.strip()
+            
+            # Parse compounds
+            compounds = json.loads(response_text)
+            if not isinstance(compounds, list):
+                compounds = []
+            
+            # Limit to 70 compounds
+            compounds = compounds[:70]
+            
+            # Save to ingredient flavor map
+            if self.ingredient_flavor_map is not None:
+                cleaned_name = self._clean_ingredient_name(ingredient)
+                self.ingredient_flavor_map[ingredient] = {
+                    "cleaned_name": cleaned_name,
+                    "compounds": compounds
+                }
+                
+                # Save to file
+                ingredient_path = Path(DEFAULT_INGREDIENT_MAP_PATH)
+                if ingredient_path.exists():
+                    with open(ingredient_path, 'w', encoding='utf-8') as f:
+                        json.dump(self.ingredient_flavor_map, f, indent=2, ensure_ascii=False)
+                    print(f"  Saved new ingredient '{ingredient}' with {len(compounds)} compounds to flavor map")
+            
+            return compounds
+            
+        except Exception as e:
+            print(f"  Warning: Failed to enrich ingredient '{ingredient}': {e}")
+            return []
+    
     def _build_compounds_for_dish(self, ingredients: List[str]) -> List[str]:
-        """Build compound list for a dish from its ingredients"""
+        """
+        Build compound list for a dish from its ingredients
+        If ingredient not found in map, queries Gemini and saves it
+        """
         all_compounds = set()
         for ingredient in ingredients:
             compounds = self._get_compounds_for_ingredient(ingredient)
+            
+            # If not found, enrich with Gemini
+            if not compounds:
+                print(f"  Ingredient '{ingredient}' not in flavor map, querying Gemini...")
+                compounds = self._enrich_ingredient_with_compounds(ingredient)
+            
             all_compounds.update(compounds)
         return sorted(list(all_compounds))
     
@@ -122,20 +205,22 @@ class MenuExtractor:
                 return "White"
             return "Red"
     
-    def _extract_with_gemini(self, content: Any, is_image: bool = False) -> Dict[str, Any]:
+    def _extract_with_gemini(self, content: Any, is_image: bool = False, is_pdf_file: bool = False, pdf_file_path: str = None) -> Dict[str, Any]:
         """
         Use Gemini to extract dishes and wines from content
         
         Args:
-            content: Text content, image bytes, or PIL Image
+            content: Text content, image bytes, PIL Image, or uploaded file reference
             is_image: Whether content is an image
+            is_pdf_file: Whether content is a PDF file (uploaded via Files API)
+            pdf_file_path: Path to PDF file (if is_pdf_file is True)
             
         Returns:
             Dictionary with 'dishes' and 'wines' arrays
         """
         prompt = """You are a culinary expert analyzing a menu, recipe book, or wine list document.
 
-Extract ALL dishes and wines from this document.
+CRITICAL: Extract EVERY SINGLE dish and wine from this document. Do not skip any items. If the document contains 50 wines, return all 50. If it contains 100 dishes, return all 100. Be thorough and complete.
 
 For each DISH, extract:
 - dish_name: Name of the dish
@@ -153,10 +238,10 @@ For each WINE (if any), extract:
 
 IMPORTANT:
 - IGNORE: Beers, soft drinks, cocktails, spirits, and other non-wine beverages
-- Extract ALL items, not just a few
+- CRITICAL: Extract ALL items, not just a few. Count all dishes and wines in the document and extract every single one.
 - If document contains only wines, return empty dishes array
 - If document contains only dishes, return empty wines array
-- If document contains both, extract both
+- If document contains both, extract BOTH completely - do not skip dishes when wines are present, and do not skip wines when dishes are present
 
 Return ONLY valid JSON in this format (no markdown, no code blocks):
 {
@@ -183,7 +268,22 @@ Return ONLY valid JSON in this format (no markdown, no code blocks):
 Document: """
         
         try:
-            if is_image:
+            if is_pdf_file and pdf_file_path:
+                # Upload PDF file directly to Gemini Files API
+                uploaded_file = self.client.files.upload(path=pdf_file_path)
+                print(f"  Uploaded PDF file: {uploaded_file.name}")
+                
+                # Use uploaded file in prompt
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=[prompt, uploaded_file],
+                    config={
+                        "temperature": 0.3,
+                        "max_output_tokens": 32768,  # Increased for large wine lists (50+ wines)
+                        "response_mime_type": "application/json"
+                    }
+                )
+            elif is_image:
                 import PIL.Image
                 import io
                 if isinstance(content, bytes):
@@ -196,7 +296,7 @@ Document: """
                     contents=[prompt, image],
                     config={
                         "temperature": 0.3,
-                        "max_output_tokens": 8192,  # Increased for large menus
+                        "max_output_tokens": 32768,  # Increased for large menus
                         "response_mime_type": "application/json"
                     }
                 )
@@ -207,7 +307,7 @@ Document: """
                     contents=full_prompt,
                     config={
                         "temperature": 0.3,
-                        "max_output_tokens": 8192,  # Increased for large menus
+                        "max_output_tokens": 32768,  # Increased for large menus
                         "response_mime_type": "application/json"
                     }
                 )
@@ -264,13 +364,27 @@ Document: """
             if not isinstance(result["wines"], list):
                 result["wines"] = []
             
+            # Log extraction results
+            dish_count = len(result["dishes"])
+            wine_count = len(result["wines"])
+            print(f"  Extracted {dish_count} dishes and {wine_count} wines")
+            
+            # Warn if extraction seems incomplete (only a few items from what might be a large document)
+            if wine_count > 0 and wine_count < 5:
+                print(f"  Warning: Only {wine_count} wines extracted - this might be incomplete. Check if document contains more wines.")
+            if dish_count > 0 and dish_count < 3:
+                print(f"  Warning: Only {dish_count} dishes extracted - this might be incomplete. Check if document contains more dishes.")
+            
             return result
             
         except json.JSONDecodeError as e:
-            print(f"  Warning: Failed to parse JSON response: {e}")
+            print(f"  Error: Failed to parse JSON response: {e}")
+            print(f"  Response text (first 500 chars): {response_text[:500] if 'response_text' in locals() else 'N/A'}")
             return {"dishes": [], "wines": []}
         except Exception as e:
-            print(f"  Warning: Error extracting content: {e}")
+            print(f"  Error: Error extracting content: {e}")
+            import traceback
+            traceback.print_exc()
             return {"dishes": [], "wines": []}
     
     def _recover_partial_json(self, json_text: str) -> Dict[str, Any]:
@@ -335,9 +449,9 @@ Document: """
         
         # Route to appropriate extraction method
         if file_type == 'pdf':
-            # Extract text from PDF
-            text_content = extract_text_from_pdf(file_path)
-            extracted = self._extract_with_gemini(text_content, is_image=False)
+            # Upload PDF directly to Gemini Files API (no text extraction)
+            print(f"  Processing PDF file directly via Gemini Files API: {file_path}")
+            extracted = self._extract_with_gemini(None, is_image=False, is_pdf_file=True, pdf_file_path=file_path)
         
         elif file_type in ['xlsx', 'xls']:
             # Convert Excel to text
@@ -369,6 +483,21 @@ Document: """
         for dish in extracted.get("dishes", []):
             # Build compounds from ingredients
             ingredients = dish.get("key_ingredients", [])
+            
+            # Check if dish has ingredients
+            if not ingredients or len(ingredients) == 0:
+                # Tag dish with no flavor profile
+                normalized_dish = normalize_dish_format(
+                    dish,
+                    source_file=source_file
+                )
+                normalized_dish["compounds"] = []
+                normalized_dish["suggested_wine_type"] = "Unknown"
+                normalized_dish["flavor_profile_note"] = "No Flavour Profile could be made, as no ingredients were listed"
+                normalized_dishes.append(normalized_dish)
+                continue
+            
+            # Build compounds from ingredients (will query Gemini if needed)
             compounds = self._build_compounds_for_dish(ingredients)
             
             # Suggest wine type

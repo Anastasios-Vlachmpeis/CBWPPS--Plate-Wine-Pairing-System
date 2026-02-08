@@ -11,8 +11,7 @@ from utils.file_parsers import (
     parse_csv_wine_list,
     parse_json_wine_list,
     parse_xlsx_wine_list,
-    detect_file_type,
-    extract_text_from_pdf
+    detect_file_type
 )
 from utils.config import DEFAULT_WINES_PATH
 
@@ -85,7 +84,8 @@ class WineManager:
         wines: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Use Gemini to get wine composition and map flavors to compounds
+        Enrich wines with flavor compounds
+        First checks processed_wines.json, then queries Gemini if not found
         
         Args:
             wines: List of wine dictionaries (should have wine_name, type_name, etc.)
@@ -96,7 +96,18 @@ class WineManager:
         import google.genai as genai
         import re
         
-        # Get API key
+        # Load processed wines database
+        processed_wines = []
+        internal_wines_path = DEFAULT_WINES_PATH
+        if internal_wines_path.exists():
+            try:
+                with open(internal_wines_path, 'r', encoding='utf-8') as f:
+                    processed_wines = json.load(f)
+                print(f"  Loaded {len(processed_wines)} wines from database")
+            except Exception as e:
+                print(f"  Warning: Failed to load processed wines: {e}")
+        
+        # Get API key for Gemini queries
         api_key = os.getenv("GOOGLE_AI_API_KEY")
         if api_key is None:
             try:
@@ -107,17 +118,49 @@ class WineManager:
                 pass
         
         if not api_key:
-            print("Warning: GOOGLE_AI_API_KEY not found. Skipping flavor enrichment.")
-            return wines
+            print("Warning: GOOGLE_AI_API_KEY not found. Skipping Gemini enrichment.")
+            client = None
+        else:
+            # Configure Gemini
+            client = genai.Client(api_key=api_key)
         
-        # Configure Gemini
-        client = genai.Client(api_key=api_key)
         model_name = "gemini-3-flash-preview"
         
         enriched_wines = []
         
         for wine in wines:
             wine_name = wine.get("wine_name", "Unknown")
+            
+            # First, try to find wine in processed_wines.json
+            found_in_db = False
+            for db_wine in processed_wines:
+                db_wine_name = db_wine.get("wine_name", "").lower().strip()
+                if db_wine_name == wine_name.lower().strip():
+                    # Found in database - use its flavor profile
+                    enriched_wine = wine.copy()
+                    enriched_wine["flavor_compounds"] = db_wine.get("flavor_compounds", [])
+                    # Copy other useful fields if missing
+                    if not enriched_wine.get("grapes") and db_wine.get("grapes"):
+                        enriched_wine["grapes"] = db_wine["grapes"]
+                    if not enriched_wine.get("region") and db_wine.get("region"):
+                        enriched_wine["region"] = db_wine["region"]
+                    if not enriched_wine.get("winery") and db_wine.get("winery"):
+                        enriched_wine["winery"] = db_wine["winery"]
+                    enriched_wines.append(enriched_wine)
+                    found_in_db = True
+                    print(f"  Found '{wine_name}' in database with {len(enriched_wine['flavor_compounds'])} compounds")
+                    break
+            
+            if found_in_db:
+                continue
+            
+            # Not found in database - query Gemini for wine info online
+            if not client:
+                print(f"  Warning: Wine '{wine_name}' not in database and no API key. Skipping enrichment.")
+                enriched_wines.append(wine)
+                continue
+            
+            print(f"  Wine '{wine_name}' not in database, querying Gemini for online information...")
             type_name = wine.get("type_name", "Unknown")
             grapes = wine.get("grapes", [])
             region = wine.get("region", "")
@@ -336,16 +379,22 @@ For flavor compounds, use standard chemical names (e.g., "Citral", "Geraniol", "
             if not api_key:
                 raise ValueError("GOOGLE_AI_API_KEY not found. Cannot extract wines from PDF.")
             
-            # Extract text from PDF
-            text_content = extract_text_from_pdf(pdf_path)
+            # Upload PDF directly to Gemini Files API (no text extraction)
+            print(f"  Uploading PDF file directly via Gemini Files API: {pdf_path}")
             
             # Configure Gemini
             client = genai.Client(api_key=api_key)
             model_name = "gemini-3-flash-preview"
             
+            # Upload PDF file
+            uploaded_file = client.files.upload(path=pdf_path)
+            print(f"  Uploaded PDF file: {uploaded_file.name}")
+            
             prompt = """You are a wine expert analyzing a wine list document.
 
-Extract ALL wines from this document. For each wine, extract:
+CRITICAL: Extract EVERY SINGLE wine from this document. Do not skip any items. If the document contains 50 wines, return all 50. If it contains 100 wines, return all 100. Be thorough and complete.
+
+For each wine, extract:
 - wine_name: Name of the wine (required)
 - type_name: "Red", "White", "Rosé", "Sparkling", or "Dessert" (required)
 - region: Wine region (if mentioned)
@@ -355,6 +404,8 @@ Extract ALL wines from this document. For each wine, extract:
 
 IGNORE: Beers, soft drinks, cocktails, spirits, and other non-wine beverages
 IGNORE: Food items, menu descriptions, prices, page numbers, headers, footers
+
+CRITICAL: Extract ALL wines. Count all wines in the document and extract every single one.
 
 Return ONLY valid JSON in this format (no markdown, no code blocks):
 {
@@ -368,18 +419,14 @@ Return ONLY valid JSON in this format (no markdown, no code blocks):
       "grapes": ["grape1", "grape2"]
     }
   ]
-}
-
-Document: """
-            
-            full_prompt = prompt + text_content[:50000]  # Limit to avoid token limits
+}"""
             
             response = client.models.generate_content(
                 model=model_name,
-                contents=full_prompt,
+                contents=[prompt, uploaded_file],
                 config={
                     "temperature": 0.3,
-                    "max_output_tokens": 8192,
+                    "max_output_tokens": 32768,  # Increased for large wine lists (50+ wines)
                     "response_mime_type": "application/json"
                 }
             )
@@ -408,6 +455,12 @@ Document: """
             try:
                 result = json.loads(response_text)
                 wines = result.get("wines", [])
+                print(f"  Extracted {len(wines)} wines from PDF")
+                
+                # Warn if extraction seems incomplete
+                if len(wines) > 0 and len(wines) < 5:
+                    print(f"  Warning: Only {len(wines)} wines extracted - this might be incomplete. Check if document contains more wines.")
+                
                 return wines
             except json.JSONDecodeError as parse_error:
                 # Try to recover partial JSON
