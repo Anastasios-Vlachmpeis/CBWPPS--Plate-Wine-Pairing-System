@@ -301,8 +301,24 @@ async def process_wines(
                 detail="No wine sources selected. Please select at least one wine source."
             )
         
+        # #region agent log
+        log_path = Path(".cursor/debug.log")
+        try:
+            import json as json_module
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_server_wine_1","timestamp":int(__import__('time').time()*1000),"location":"server.py:304","message":"About to enrich wines","data":{"wine_sources_count":len(wine_sources)},"runId":"run1","hypothesisId":"F"}) + "\n")
+        except: pass
+        # #endregion
+        
         # Enrich wines with flavors
         enriched_wines = app_instance.wine_manager.enrich_wines_with_flavors(wine_sources)
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_server_wine_2","timestamp":int(__import__('time').time()*1000),"location":"server.py:312","message":"Wines enriched","data":{"enriched_count":len(enriched_wines)},"runId":"run1","hypothesisId":"F"}) + "\n")
+        except: pass
+        # #endregion
         
         # Store in app instance
         app_instance.wines = enriched_wines

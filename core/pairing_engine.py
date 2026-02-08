@@ -129,6 +129,15 @@ class PairingEngine:
         
         pairings = {}
         
+        # #region agent log
+        log_path = Path(".cursor/debug.log")
+        try:
+            import json as json_module
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_pairing_1","timestamp":int(__import__('time').time()*1000),"location":"pairing_engine.py:130","message":"Starting wine-dish pairing","data":{"dish_count":len(dish_ids),"wine_count":len(wines),"max_wines_per_dish":max_wines_per_dish},"runId":"run1","hypothesisId":"D"}) + "\n")
+        except: pass
+        # #endregion
+        
         for dish_id in dish_ids:
             wine_ids = self.pair_wines_to_dish(
                 dish_id=dish_id,

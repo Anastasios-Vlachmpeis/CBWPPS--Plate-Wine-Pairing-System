@@ -5,6 +5,7 @@ Generates comprehensive reports on dish-wine pairings with scientific analysis
 
 import json
 import os
+from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 from collections import defaultdict
 from datetime import datetime
@@ -95,7 +96,7 @@ class ReportGenerator:
                 return f"This {wine.get('type_name', 'wine')} shares {shared_count} flavor compounds with the dish, creating a harmonious pairing."
             return f"This {wine.get('type_name', 'wine')} complements the dish's flavor profile."
         
-        dish_name = dish.get("dish_name", "dish")
+        dish_name = dish.get("name") or dish.get("dish_name", "dish")  # Use "name" from normalized format
         wine_name = wine.get("wine_name", "wine")
         wine_type = wine.get("type_name", "wine")
         shared_compounds = scientific_analysis.get("shared_compounds", [])
@@ -282,6 +283,15 @@ Explanation:"""
         # Create lookups
         wine_dict = {w.get("wine_id"): w for w in wines if w.get("wine_id") is not None}
         
+        # #region agent log
+        log_path = Path(".cursor/debug.log")
+        try:
+            import json as json_module
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_report_gen_1","timestamp":int(__import__('time').time()*1000),"location":"report_generator.py:283","message":"Generating report","data":{"wine_count":len(wines),"wine_dict_size":len(wine_dict),"pairings_count":len(pairings),"menu_profile_size":len(menu_profile)},"runId":"run1","hypothesisId":"D"}) + "\n")
+        except: pass
+        # #endregion
+        
         # Generate wine rankings
         if wine_rankings is None:
             # Simple ranking by pairing count
@@ -328,7 +338,7 @@ Explanation:"""
             flavor_profile_note = dish.get("flavor_profile_note")
             if flavor_profile_note:
                 dish_pairings[dish_id] = {
-                    "dish_name": dish.get("dish_name", "Unknown"),
+                    "dish_name": dish.get("name") or dish.get("dish_name", "Unknown"),  # Use "name" from normalized format
                     "flavor_profile_note": flavor_profile_note,
                     "wines": [],
                     "message": "No good wine pairings can be made with this plate, based on your current winelist"
@@ -338,7 +348,7 @@ Explanation:"""
             # Check if no pairings found
             if not wine_ids:
                 dish_pairings[dish_id] = {
-                    "dish_name": dish.get("dish_name", "Unknown"),
+                    "dish_name": dish.get("name") or dish.get("dish_name", "Unknown"),  # Use "name" from normalized format
                     "wines": [],
                     "message": "No good wine pairings can be made with this plate, based on your current winelist"
                 }
@@ -384,7 +394,7 @@ Explanation:"""
                 })
             
             dish_pairings[dish_id] = {
-                "dish_name": dish.get("dish_name", "Unknown"),
+                "dish_name": dish.get("name") or dish.get("dish_name", "Unknown"),  # Use "name" field from normalized format
                 "wines": wine_pairings
             }
         
@@ -461,7 +471,7 @@ Explanation:"""
         lines.append("")
         
         for dish_id, pairing_info in report["dish_pairings"].items():
-            dish_name = pairing_info["dish_name"]
+            dish_name = pairing_info.get("dish_name") or pairing_info.get("name", "Unknown")
             
             # Check for flavor profile note
             if "flavor_profile_note" in pairing_info:

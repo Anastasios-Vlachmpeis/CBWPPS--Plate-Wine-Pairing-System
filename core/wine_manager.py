@@ -128,7 +128,23 @@ class WineManager:
         
         enriched_wines = []
         
-        for wine in wines:
+        # #region agent log
+        log_path = Path(".cursor/debug.log")
+        try:
+            import json as json_module
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_wine_enrich_1","timestamp":int(__import__('time').time()*1000),"location":"wine_manager.py:129","message":"Starting wine enrichment","data":{"total_wines":len(wines),"processed_wines_count":len(processed_wines)},"runId":"run1","hypothesisId":"C"}) + "\n")
+        except: pass
+        # #endregion
+        
+        for i, wine in enumerate(wines):
+            # #region agent log
+            try:
+                if i < 5 or i % 20 == 0:  # Log first 5 and every 20th
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json_module.dumps({"id":"log_wine_enrich_2","timestamp":int(__import__('time').time()*1000),"location":"wine_manager.py:137","message":"Processing wine","data":{"index":i,"wine_name":wine.get("wine_name", "Unknown")},"runId":"run1","hypothesisId":"C"}) + "\n")
+            except: pass
+            # #endregion
             wine_name = wine.get("wine_name", "Unknown")
             
             # First, try to find wine in processed_wines.json
@@ -149,6 +165,12 @@ class WineManager:
                     enriched_wines.append(enriched_wine)
                     found_in_db = True
                     print(f"  Found '{wine_name}' in database with {len(enriched_wine['flavor_compounds'])} compounds")
+                    # #region agent log
+                    try:
+                        with open(log_path, 'a', encoding='utf-8') as f:
+                            f.write(json_module.dumps({"id":"log_wine_enrich_3","timestamp":int(__import__('time').time()*1000),"location":"wine_manager.py:152","message":"Wine found in database","data":{"index":i,"wine_name":wine_name,"compounds_count":len(enriched_wine['flavor_compounds'])},"runId":"run1","hypothesisId":"C"}) + "\n")
+                    except: pass
+                    # #endregion
                     break
             
             if found_in_db:
@@ -191,65 +213,125 @@ Return ONLY valid JSON (no markdown, no code blocks):
 If grapes are already provided, use those. Otherwise, identify the most likely grape varieties.
 For flavor compounds, use standard chemical names (e.g., "Citral", "Geraniol", "Linalool")."""
             
-            try:
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                    config={
-                        "temperature": 0.3,
-                        "max_output_tokens": 500,
-                        "response_mime_type": "application/json"
-                    }
-                )
-                
-                # Extract text from response
-                if hasattr(response, 'text'):
-                    response_text = response.text.strip()
-                elif hasattr(response, 'candidates') and response.candidates:
-                    response_text = response.candidates[0].content.parts[0].text.strip()
-                else:
-                    response_text = str(response).strip()
-                
-                # Clean JSON
-                response_text = response_text.strip()
-                if response_text.startswith("```json"):
-                    response_text = response_text[7:]
-                if response_text.startswith("```"):
-                    response_text = response_text[3:]
-                if response_text.endswith("```"):
-                    response_text = response_text[:-3]
-                response_text = response_text.strip()
-                
-                # Parse JSON
-                result = json.loads(response_text)
-                
-                # Update wine with enriched data
-                enriched_wine = wine.copy()
-                if "grapes" in result and result["grapes"]:
-                    enriched_wine["grapes"] = result["grapes"]
-                
-                # Map grapes to compounds using ingredient_flavor_map
-                compounds = set()
-                if self.ingredient_flavor_map:
-                    for grape in enriched_wine.get("grapes", []):
-                        grape_cleaned = self._clean_ingredient_name(grape)
-                        # Try to find grape in ingredient map
-                        for ingredient_name, data in self.ingredient_flavor_map.items():
-                            if data.get("cleaned_name") == grape_cleaned:
-                                compounds.update(data.get("compounds", []))
-                                break
-                
-                # Add compounds from Gemini (if any)
-                if "flavor_compounds" in result:
-                    compounds.update(result["flavor_compounds"])
-                
-                enriched_wine["flavor_compounds"] = list(compounds)
-                enriched_wines.append(enriched_wine)
-                
-            except Exception as e:
-                # If enrichment fails, use original wine
-                print(f"Warning: Failed to enrich wine {wine_name}: {e}")
-                enriched_wines.append(wine)
+            # Retry logic for rate limiting (429 errors)
+            max_retries = 3
+            import time
+            import re
+            
+            response = None
+            for attempt in range(max_retries):
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config={
+                            "temperature": 0.3,
+                            "max_output_tokens": 500,
+                            "response_mime_type": "application/json"
+                        }
+                    )
+                    # Success - process response
+                    break
+                except Exception as api_error:
+                    error_str = str(api_error)
+                    # Check for 429 rate limit error
+                    if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                        # Extract retry delay from error message if available
+                        retry_delay = 15  # Default 15 seconds
+                        delay_match = re.search(r'retry in ([\d.]+)s', error_str, re.IGNORECASE)
+                        if delay_match:
+                            retry_delay = max(int(float(delay_match.group(1))) + 2, 15)  # Add 2s buffer, min 15s
+                        
+                        if attempt < max_retries - 1:
+                            print(f"  ⚠️  API quota exceeded for wine '{wine_name}'. Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
+                            time.sleep(retry_delay)
+                            continue
+                        else:
+                            print(f"  ❌ API quota exceeded for wine '{wine_name}' after {max_retries} attempts.")
+                            print(f"  💡 Free tier limit: 20 requests/day. Skipping this wine.")
+                            # Use original wine without enrichment
+                            enriched_wines.append(wine)
+                            break  # Skip to next wine
+                    else:
+                        # Non-quota error - retry or give up
+                        if attempt < max_retries - 1:
+                            print(f"  ⚠️  Error enriching wine '{wine_name}': {error_str[:100]}. Retrying... (attempt {attempt + 1}/{max_retries})")
+                            time.sleep(2)
+                            continue
+                        else:
+                            print(f"Warning: Failed to enrich wine {wine_name}: {api_error}")
+                            enriched_wines.append(wine)
+                            break
+            
+            # Process response if we got one
+            if response is not None:
+                try:
+                    # Extract text from response
+                    if hasattr(response, 'text'):
+                        response_text = response.text.strip()
+                    elif hasattr(response, 'candidates') and response.candidates:
+                        response_text = response.candidates[0].content.parts[0].text.strip()
+                    else:
+                        response_text = str(response).strip()
+                    
+                    # Clean JSON
+                    response_text = response_text.strip()
+                    if response_text.startswith("```json"):
+                        response_text = response_text[7:]
+                    if response_text.startswith("```"):
+                        response_text = response_text[3:]
+                    if response_text.endswith("```"):
+                        response_text = response_text[:-3]
+                    response_text = response_text.strip()
+                    
+                    # Parse JSON
+                    result = json.loads(response_text)
+                    
+                    # Update wine with enriched data
+                    enriched_wine = wine.copy()
+                    if "grapes" in result and result["grapes"]:
+                        enriched_wine["grapes"] = result["grapes"]
+                    
+                    # Map grapes to compounds using ingredient_flavor_map
+                    compounds = set()
+                    if self.ingredient_flavor_map:
+                        for grape in enriched_wine.get("grapes", []):
+                            grape_cleaned = self._clean_ingredient_name(grape)
+                            # Try to find grape in ingredient map
+                            for ingredient_name, data in self.ingredient_flavor_map.items():
+                                if data.get("cleaned_name") == grape_cleaned:
+                                    compounds.update(data.get("compounds", []))
+                                    break
+                    
+                    # Add compounds from Gemini (if any)
+                    if "flavor_compounds" in result:
+                        compounds.update(result["flavor_compounds"])
+                    
+                    enriched_wine["flavor_compounds"] = list(compounds)
+                    enriched_wines.append(enriched_wine)
+                    # #region agent log
+                    try:
+                        with open(log_path, 'a', encoding='utf-8') as f:
+                            f.write(json_module.dumps({"id":"log_wine_enrich_4","timestamp":int(__import__('time').time()*1000),"location":"wine_manager.py:301","message":"Wine enriched via Gemini","data":{"index":i,"wine_name":wine_name,"compounds_count":len(compounds)},"runId":"run1","hypothesisId":"C"}) + "\n")
+                    except: pass
+                    # #endregion
+                except Exception as e:
+                    # If processing fails, use original wine
+                    print(f"Warning: Failed to process response for wine {wine_name}: {e}")
+                    enriched_wines.append(wine)
+                    # #region agent log
+                    try:
+                        with open(log_path, 'a', encoding='utf-8') as f:
+                            f.write(json_module.dumps({"id":"log_wine_enrich_5","timestamp":int(__import__('time').time()*1000),"location":"wine_manager.py:320","message":"Wine enrichment failed","data":{"index":i,"wine_name":wine_name,"error":str(e)[:100]},"runId":"run1","hypothesisId":"C"}) + "\n")
+                    except: pass
+                    # #endregion
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_wine_enrich_6","timestamp":int(__import__('time').time()*1000),"location":"wine_manager.py:253","message":"Wine enrichment complete","data":{"total_enriched":len(enriched_wines)},"runId":"run1","hypothesisId":"C"}) + "\n")
+        except: pass
+        # #endregion
         
         return enriched_wines
     
@@ -387,13 +469,9 @@ For flavor compounds, use standard chemical names (e.g., "Citral", "Geraniol", "
             model_name = "gemini-3-flash-preview"
             
             # Upload PDF file directly to Gemini Files API
-            # Read file and upload
-            with open(pdf_path, 'rb') as f:
-                file_data = f.read()
-            uploaded_file = client.files.upload(
-                file=file_data,
-                mime_type='application/pdf'
-            )
+            # Based on debug logs: client.files.upload() accepts file parameter (path string, PathLike, or file object)
+            # Signature: (*, file: Union[str, os.PathLike[str], io.IOBase], config: ...)
+            uploaded_file = client.files.upload(file=pdf_path)
             print(f"  Uploaded PDF file: {uploaded_file.name}")
             
             prompt = """You are a wine expert analyzing a wine list document.

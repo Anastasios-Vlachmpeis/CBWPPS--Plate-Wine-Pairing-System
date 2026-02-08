@@ -267,29 +267,31 @@ Return ONLY valid JSON in this format (no markdown, no code blocks):
 
 Document: """
         
-        try:
-            if is_pdf_file and pdf_file_path:
-                # Upload PDF file directly to Gemini Files API
-                # Read file and upload
-                with open(pdf_file_path, 'rb') as f:
-                    file_data = f.read()
-                uploaded_file = self.client.files.upload(
-                    file=file_data,
-                    mime_type='application/pdf'
-                )
-                print(f"  Uploaded PDF file: {uploaded_file.name}")
-                
-                # Use uploaded file in prompt
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=[prompt, uploaded_file],
-                    config={
-                        "temperature": 0.3,
-                        "max_output_tokens": 32768,  # Increased for large wine lists (50+ wines)
-                        "response_mime_type": "application/json"
-                    }
-                )
-            elif is_image:
+        # Retry logic for rate limiting (429 errors)
+        max_retries = 3
+        import time
+        import re
+        
+        for attempt in range(max_retries):
+            try:
+                if is_pdf_file and pdf_file_path:
+                    # Upload PDF file directly to Gemini Files API
+                    # Based on debug logs: client.files.upload() accepts file parameter (path string, PathLike, or file object)
+                    # Signature: (*, file: Union[str, os.PathLike[str], io.IOBase], config: ...)
+                    uploaded_file = self.client.files.upload(file=pdf_file_path)
+                    print(f"  Uploaded PDF file: {uploaded_file.name}")
+                    
+                    # Use uploaded file in prompt
+                    response = self.client.models.generate_content(
+                        model=self.model_name,
+                        contents=[prompt, uploaded_file],
+                        config={
+                            "temperature": 0.3,
+                            "max_output_tokens": 32768,  # Increased for large wine lists (50+ wines)
+                            "response_mime_type": "application/json"
+                        }
+                    )
+                elif is_image:
                 import PIL.Image
                 import io
                 if isinstance(content, bytes):
@@ -381,17 +383,46 @@ Document: """
             if dish_count > 0 and dish_count < 3:
                 print(f"  Warning: Only {dish_count} dishes extracted - this might be incomplete. Check if document contains more dishes.")
             
-            return result
+                return result
+                
+            except json.JSONDecodeError as e:
+                print(f"  Error: Failed to parse JSON response: {e}")
+                print(f"  Response text (first 500 chars): {response_text[:500] if 'response_text' in locals() else 'N/A'}")
+                return {"dishes": [], "wines": []}
+            except Exception as e:
+                error_str = str(e)
+                # Check for 429 rate limit error
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                    # Extract retry delay from error message if available
+                    retry_delay = 15  # Default 15 seconds
+                    delay_match = re.search(r'retry in ([\d.]+)s', error_str, re.IGNORECASE)
+                    if delay_match:
+                        retry_delay = max(int(float(delay_match.group(1))) + 2, 15)  # Add 2s buffer, min 15s
+                    
+                    if attempt < max_retries - 1:
+                        print(f"  ⚠️  API quota exceeded (429). Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
+                        print(f"  💡 Free tier limit: 20 requests/day. Consider upgrading or waiting until quota resets.")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        print(f"  ❌ API quota exceeded after {max_retries} attempts.")
+                        print(f"  💡 Free tier limit: 20 requests/day. Please wait for quota reset or upgrade your plan.")
+                        print(f"  📖 More info: https://ai.google.dev/gemini-api/docs/rate-limits")
+                        raise ValueError(
+                            f"Gemini API quota exceeded. Free tier allows 20 requests/day. "
+                            f"Please wait for quota reset or upgrade your plan. "
+                            f"Error: {error_str[:200]}"
+                        )
+                else:
+                    # Non-quota error - don't retry
+                    if attempt == 0:  # Only print full traceback on first attempt
+                        print(f"  Error: Error extracting content: {e}")
+                        import traceback
+                        traceback.print_exc()
+                    raise
             
-        except json.JSONDecodeError as e:
-            print(f"  Error: Failed to parse JSON response: {e}")
-            print(f"  Response text (first 500 chars): {response_text[:500] if 'response_text' in locals() else 'N/A'}")
-            return {"dishes": [], "wines": []}
-        except Exception as e:
-            print(f"  Error: Error extracting content: {e}")
-            import traceback
-            traceback.print_exc()
-            return {"dishes": [], "wines": []}
+        # Should not reach here, but just in case
+        return {"dishes": [], "wines": []}
     
     def _recover_partial_json(self, json_text: str) -> Dict[str, Any]:
         """
@@ -487,6 +518,16 @@ Document: """
         # Normalize dishes
         normalized_dishes = []
         for dish in extracted.get("dishes", []):
+            # #region agent log
+            log_path = Path(".cursor/debug.log")
+            try:
+                import json as json_module
+                dish_name_raw = dish.get("dish_name") or dish.get("name", "MISSING")
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json_module.dumps({"id":"log_dish_norm_1","timestamp":int(__import__('time').time()*1000),"location":"menu_extractor.py:485","message":"Normalizing dish","data":{"dish_name_raw":dish_name_raw,"has_key_ingredients":bool(dish.get("key_ingredients")),"ingredient_count":len(dish.get("key_ingredients", []))},"runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
+            
             # Build compounds from ingredients
             ingredients = dish.get("key_ingredients", [])
             
@@ -501,6 +542,12 @@ Document: """
                 normalized_dish["suggested_wine_type"] = "Unknown"
                 normalized_dish["flavor_profile_note"] = "No Flavour Profile could be made, as no ingredients were listed"
                 normalized_dishes.append(normalized_dish)
+                # #region agent log
+                try:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json_module.dumps({"id":"log_dish_norm_2","timestamp":int(__import__('time').time()*1000),"location":"menu_extractor.py:500","message":"Dish normalized (no ingredients)","data":{"dish_id":normalized_dish.get("dish_id"),"name":normalized_dish.get("name")},"runId":"run1","hypothesisId":"A"}) + "\n")
+                except: pass
+                # #endregion
                 continue
             
             # Build compounds from ingredients (will query Gemini if needed)
@@ -520,13 +567,51 @@ Document: """
             normalized_dish["compounds"] = compounds
             normalized_dish["suggested_wine_type"] = suggested_wine_type
             
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json_module.dumps({"id":"log_dish_norm_3","timestamp":int(__import__('time').time()*1000),"location":"menu_extractor.py:520","message":"Dish normalized (with ingredients)","data":{"dish_id":normalized_dish.get("dish_id"),"name":normalized_dish.get("name"),"compound_count":len(compounds)},"runId":"run1","hypothesisId":"A"}) + "\n")
+            except: pass
+            # #endregion
+            
             normalized_dishes.append(normalized_dish)
         
-        # Normalize wines
+        # Normalize wines and remove duplicates
         normalized_wines = []
+        seen_wine_names = set()
+        # #region agent log
+        log_path = Path(".cursor/debug.log")
+        try:
+            import json as json_module
+            raw_wines = extracted.get("wines", [])
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_wine_norm_1","timestamp":int(__import__('time').time()*1000),"location":"menu_extractor.py:544","message":"Normalizing wines","data":{"raw_wine_count":len(raw_wines)},"runId":"run1","hypothesisId":"E"}) + "\n")
+        except: pass
+        # #endregion
+        
         for wine in extracted.get("wines", []):
             normalized_wine = normalize_wine_format(wine)
+            wine_name = normalized_wine.get("wine_name", "").lower().strip()
+            
+            # Check for duplicates
+            if wine_name and wine_name in seen_wine_names:
+                # #region agent log
+                try:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json_module.dumps({"id":"log_wine_norm_2","timestamp":int(__import__('time').time()*1000),"location":"menu_extractor.py:555","message":"Duplicate wine skipped","data":{"wine_name":wine_name},"runId":"run1","hypothesisId":"E"}) + "\n")
+                except: pass
+                # #endregion
+                continue
+            
+            seen_wine_names.add(wine_name)
             normalized_wines.append(normalized_wine)
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_wine_norm_3","timestamp":int(__import__('time').time()*1000),"location":"menu_extractor.py:565","message":"Wine normalization complete","data":{"normalized_count":len(normalized_wines),"duplicates_removed":len(extracted.get("wines", [])) - len(normalized_wines)},"runId":"run1","hypothesisId":"E"}) + "\n")
+        except: pass
+        # #endregion
         
         return {
             "dishes": normalized_dishes,

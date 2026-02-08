@@ -75,10 +75,42 @@ class MenuProcessor:
         
         # Convert dishes list to menu profile format (dict by dish_id)
         menu_profile = {}
+        # #region agent log
+        log_path = Path(".cursor/debug.log")
+        try:
+            import json as json_module
+            dishes_list = result.get("dishes", [])
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_menu_prof_1","timestamp":int(__import__('time').time()*1000),"location":"menu_processor.py:76","message":"Converting dishes to menu profile","data":{"dish_count":len(dishes_list),"sample_dishes":[{"dish_id":d.get("dish_id"),"name":d.get("name")} for d in dishes_list[:3]]},"runId":"run1","hypothesisId":"B"}) + "\n")
+        except: pass
+        # #endregion
+        
         for dish in result.get("dishes", []):
             dish_id = dish.get("dish_id")
+            dish_name = dish.get("name") or dish.get("dish_name", "MISSING")
+            # #region agent log
+            try:
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json_module.dumps({"id":"log_menu_prof_2","timestamp":int(__import__('time').time()*1000),"location":"menu_processor.py:82","message":"Processing dish for menu profile","data":{"dish_id":dish_id,"dish_name":dish_name,"has_dish_id":bool(dish_id)},"runId":"run1","hypothesisId":"B"}) + "\n")
+            except: pass
+            # #endregion
             if dish_id:
                 menu_profile[dish_id] = dish
+            else:
+                # #region agent log
+                try:
+                    with open(log_path, 'a', encoding='utf-8') as f:
+                        f.write(json_module.dumps({"id":"log_menu_prof_3","timestamp":int(__import__('time').time()*1000),"location":"menu_processor.py:88","message":"Dish skipped - no dish_id","data":{"dish_name":dish_name,"dish_keys":list(dish.keys())},"runId":"run1","hypothesisId":"B"}) + "\n")
+                except: pass
+                # #endregion
+                print(f"  Warning: Dish '{dish_name}' has no dish_id, skipping from menu profile")
+        
+        # #region agent log
+        try:
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json_module.dumps({"id":"log_menu_prof_4","timestamp":int(__import__('time').time()*1000),"location":"menu_processor.py:91","message":"Menu profile created","data":{"menu_profile_size":len(menu_profile),"dish_ids":list(menu_profile.keys())[:5]},"runId":"run1","hypothesisId":"B"}) + "\n")
+        except: pass
+        # #endregion
         
         return {
             "dishes": result.get("dishes", []),
