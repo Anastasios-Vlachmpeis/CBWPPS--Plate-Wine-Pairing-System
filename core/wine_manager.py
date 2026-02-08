@@ -386,8 +386,14 @@ For flavor compounds, use standard chemical names (e.g., "Citral", "Geraniol", "
             client = genai.Client(api_key=api_key)
             model_name = "gemini-3-flash-preview"
             
-            # Upload PDF file
-            uploaded_file = client.files.upload(path=pdf_path)
+            # Upload PDF file directly to Gemini Files API
+            # Read file and upload
+            with open(pdf_path, 'rb') as f:
+                file_data = f.read()
+            uploaded_file = client.files.upload(
+                file=file_data,
+                mime_type='application/pdf'
+            )
             print(f"  Uploaded PDF file: {uploaded_file.name}")
             
             prompt = """You are a wine expert analyzing a wine list document.

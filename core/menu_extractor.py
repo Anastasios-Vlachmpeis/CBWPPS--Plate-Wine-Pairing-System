@@ -270,7 +270,13 @@ Document: """
         try:
             if is_pdf_file and pdf_file_path:
                 # Upload PDF file directly to Gemini Files API
-                uploaded_file = self.client.files.upload(path=pdf_file_path)
+                # Read file and upload
+                with open(pdf_file_path, 'rb') as f:
+                    file_data = f.read()
+                uploaded_file = self.client.files.upload(
+                    file=file_data,
+                    mime_type='application/pdf'
+                )
                 print(f"  Uploaded PDF file: {uploaded_file.name}")
                 
                 # Use uploaded file in prompt
