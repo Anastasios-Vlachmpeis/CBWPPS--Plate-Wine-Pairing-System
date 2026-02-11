@@ -1,10 +1,10 @@
-# AI Culinary Expert - Wine Pairing System
+# CBWPPS -- Plate - Wine Pairing System
 
 A comprehensive molecular gastronomy-based wine pairing AI system that recommends wines based on shared flavor compounds between dishes and wines. The system combines scientific flavor analysis with intelligent pairing algorithms to provide restaurant-quality wine recommendations.
 
 ## Project Overview
 
-AI Culinary Expert is a full-stack wine pairing application that processes restaurant menus, analyzes molecular flavor compounds, and generates intelligent wine recommendations. The system supports both individual dish pairing and complete menu analysis workflows, with a modern web interface and robust API.
+A full-stack wine pairing application that processes restaurant menus, analyzes molecular flavor compounds, and generates intelligent wine recommendations. The system supports both individual dish pairing and complete menu analysis workflows, with a modern web interface and robust API.
 
 ## Architecture
 
